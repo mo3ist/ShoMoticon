@@ -1,0 +1,333 @@
+{% extends 'game/base.html' %}
+{% block content %}
+    {% if user.is_authenticated %}
+        <h1>Welcome {{ user.username }} </h1>
+    {% else %}
+        <h1> NOT WELCOMED </h1>
+    {% endif %}
+
+    <!-- main row -->
+    <div class="row">
+        <!-- players info col -->
+        <div class="col" style="height: 400px; border: 2px solid black" id="players-screen">
+
+        </div>
+
+        <div class="col-6 d-flex flex-column align-items-center justify-content-center" style="height: 400px; border: 2px solid black">
+            <div class="row" style="border: 2px solid black" id="timer">
+                
+            </div>
+            <div class="row" id="game_screen">
+                
+            </div>
+        </div>
+
+        <div class="col" style="height: 400px; border: 2px solid black">
+            <div id="chat-screen">
+                
+            </div>
+             <div class="form-group">
+                <input type="text" class="form-control" id="chat-input" placeholder>
+            </div>
+        </div>
+    </div>
+
+
+   
+
+    {{ game_name|json_script:'game_name' }}
+
+    <script>
+        var game_screen = document.getElementById("game_screen")
+        var chat_input = document.getElementById("chat-input")
+        var chat_screen = document.getElementById("chat-screen")
+        var players_screen = document.getElementById("players-screen")
+        var timer_div = document.getElementById("timer")
+        var timer = null
+        var state = 0
+        var game_name = JSON.parse(document.getElementById('game_name').textContent) 
+        // //console.log(game_name)
+        const ws = new WebSocket(
+            'ws://' +
+            window.location.host +
+            '/ws/game/' +
+            game_name + 
+            '/'
+        )
+    
+        chat_input.onkeydown = function (e){
+            if (e.keyCode == 13){
+                var data = {
+                    'status': 2,
+                    'message': chat_input.value
+                }
+                ws.send(JSON.stringify(data))
+            }
+        }
+        
+
+        function display_players(players){
+            players_screen.innerHTML = ""
+            for (var i=0; i<players.length; i++){
+                player = document.createElement("div")
+                //console.log(players[i])
+                //console.log(player)
+                player.innerHTML = players[i].name
+                players_screen.appendChild(player)
+            }
+        }
+
+        function display_timer(t){
+            //console.log(timer)
+            //timer = t
+            timer_div.innerHTML = t
+            timer_interval = setInterval(update_timer, 1000)    
+        }
+
+        function update_timer(e){
+            timer -= 1 
+            timer_div.innerHTML = timer
+            if (timer <= 0){
+                clearInterval(timer_interval)
+                timer_div.innerHTML = ''
+            }
+        }
+
+        function display_chat(chat){
+            // chat
+            chat_screen.innerHTML = ""
+                for (var i=0; i<chat.length; i ++){
+                    console.log(chat[i])
+                    chat_elem = document.createElement('div')
+                    chat_player = document.createElement('span')
+                    chat_player.innerHTML = chat[i].player
+                    chat_player.setAttribute('class', 'chat-player')
+
+                    chat_message = document.createElement('span')
+                    chat_message.innerHTML = chat[i].message[0]
+                    chat_message.setAttribute('class', 'chat-message')
+
+                    chat_elem.appendChild(chat_player)
+                    chat_elem.appendChild(chat_message)
+                    chat_screen.append(chat_elem)
+                }
+            }
+        
+        function display_illustration(illustration_data, illustration_screen){
+            text = document.createElement("p")
+            text.innerHTML = illustration_data
+            illustration_screen.appendChild(text)
+        }
+
+
+        function display_gameover(){
+            gameover_timer_div.innerHTML = gameover_time
+            gameover_timer_interval = setInterval(update_gameover_timer, 1000)
+
+        }
+
+        function update_gameover_timer(){
+            gameover_time -= 1
+            gameover_timer_div.innerHTML = gameover_time
+            
+            if (gameover_time <= 0){
+                clearInterval(gameover_timer_interval)
+            }
+        }
+
+        function status_manager(data){
+            // YEAH I KNOW, DECORATORS ARE SOMEWHAT BETTER FOR THIS JOB :)
+            console.log(data)
+            if (data['perm'] == 'illustrate_player'){
+                // send the data to be handled in illstrator
+                handle_illustrator(data)
+            } else if (data['perm'] == 'guess_player'){
+                // send data to be hand))d in guesser
+                handle_guesser(data)    
+            }
+        }
+
+        function handle_illustrator(data){            
+
+            if (data.state == 0){
+                if (state == 0){
+                    game_screen.innerHTML = ""
+                    var waiting_screen = document.createElement('div')
+                    waiting_screen.innerHTML = "<p>Loading</p>"
+                    game_screen.appendChild(waiting_screen)
+                }
+
+                display_players(data.players)
+            }
+            else if (data.state == 1){
+                // remove the initial waiting
+                state = 1
+                game_screen.innerHTML = ""
+
+                words_screen = document.createElement('div')
+                words_screen.className = 'btn-group btn-group-toggle'
+
+                for(var i=0; i<data.words.length; i++){
+                    word_label = document.createElement('label')
+                    word_label.className = 'btn btn-secondary active'
+                    word_label.innerHTML = data.words[i] 
+                    word = document.createElement('input')
+                    word.setAttribute('name', 'options')
+                    word.setAttribute('type', 'radio')
+                    word.setAttribute('id', data.words[i])
+                    word.onclick = function (e){
+                        //console.log(e.target.id)
+                        data = {
+                            'status' : 1,
+                            'word': e.target.id
+                        }
+                        ws.send(JSON.stringify(data))
+                    }
+                    word_label.appendChild(word)
+                    words_screen.appendChild(word_label)   
+                }
+
+                game_screen.appendChild(words_screen)
+
+            } else if (data.state == 2){
+                state = 2
+                if (data.substate == 0){
+                    game_screen.innerHTML = ''
+                    illustration_text_div = document.createElement('div')
+
+                    illustration_input_div = document.createElement('div')
+                    illustration_input_div.className = 'd-flex justify-content-center align-items-center'
+                    
+                    illustration_input = document.createElement('input')
+                    illustration_input.className = 'form-control'
+
+                    illustration_input.onkeydown = function (e){
+                        data.message = illustration_input.value
+                        // //console.log(data.message)
+                         data = {
+                                'status' : 3,
+                                'illustration': illustration_input.value
+                            }
+
+                        ws.send(JSON.stringify(data))
+                    }
+
+                    game_screen.appendChild(illustration_input_div)
+                    game_screen.appendChild(illustration_input)
+
+                    // chat 
+                    display_chat(data.chat)
+
+                    // timer 
+                    timer = data.timer
+                    display_timer(timer)
+
+
+                }
+                else if (data.substate == 1){
+                    // chat
+                    display_chat(data.chat)
+                }
+                else if (data.substate == 2){
+                    // illus 
+                    if (illustrate_text_div){
+                        display_illustration(data.illustration, illustrate_text_div)
+                    }
+                }
+                else if (data.substate == 3){
+                    // score screen is before changin turn
+                    state = 0
+                }
+            }
+            else if (data.state == 3){
+                if (data.substate == 0){
+                    state = 0
+                    game_screen.innerHTML = "GAME OVER"
+
+                    gameover_time = data.timer
+                    gameover_timer_div = document.createElement("div")
+                    
+                    game_screen.appendChild(gameover_timer_div)
+                }
+            }
+        }
+
+        function handle_guesser(data){
+            if (data.state == 0){
+                
+                if (state == 0){
+                    game_screen.innerHTML = ""
+                    var waiting_screen = document.createElement('div')
+                    waiting_screen.innerHTML = "<p>Loading</p>"
+                    game_screen.appendChild(waiting_screen)
+    
+                    display_chat(data.chat)
+                }
+
+                display_players(data.players)
+            }
+
+            if (data.state == 1){
+                state = 1
+
+                game_screen.innerHTML = '<p> waiting for player to chose word </p>'
+
+
+            } else if (data.state == 2){
+                state = 2
+                if (data.substate == 0){
+                    game_screen.innerHTML = ''
+                    illustration_text_div = document.createElement('div')
+                    game_screen.appendChild(illustration_text_div)
+                    // chat
+                    display_chat(data.chat)
+
+                    // timer 
+                    timer = data.timer
+                    display_timer(timer)
+
+
+                }
+                else if (data.substate == 1){
+                    display_chat(data.chat)
+                }
+                else if (data.substate == 2){
+                    if (illustration_text_div){
+                        display_illustration(data.illustration, illustration_text_div)
+                    }
+                }
+                else if (data.substate == 3){
+                    // score screen
+                    state = 0
+                   
+                }
+            }
+            else if (data.state == 3){
+                if (data.substate == 0){
+                    state = 0
+
+                    game_screen.innerHTML = "GAME OVER"
+
+                    gameover_time = data.timer
+                    gameover_timer_div = document.createElement("div")
+                    
+                    game_screen.appendChild(gameover_timer_div)
+                }
+            }
+        }
+
+        
+        ws.onmessage = function (e){
+            data = JSON.parse(e.data)
+            status_manager(data)
+        }
+
+        
+            // if (word_screen.style.display == 'block'){
+            //     // https://stackoverflow.com/questions/21673985/bootstrap-radio-button-get-selected-value-on-submit-form
+            //     word = $('#word_screen input:radio:checked').val()
+            //     //console.log(word)
+            // }
+    </script>
+{% endblock %}
+

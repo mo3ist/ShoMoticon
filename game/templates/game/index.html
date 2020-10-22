@@ -1,0 +1,14 @@
+{% extends 'game/base.html' %}
+
+{% block content %}
+
+<form action="" method="POST">
+    {% csrf_token %}
+    <div class="form-group">
+        <input type="text" class="form-control" placeholder="Game Room" name="game_name">
+        <input type="text" class="form-control" placeholder="Player Name" name="player_name">
+        <button type="submit" class="btn btn-primary btn-block">Submit</button>
+    </div>
+</form>
+
+{% endblock %}

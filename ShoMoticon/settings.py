@@ -31,6 +31,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
+    'game.apps.GameConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -68,7 +70,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ShoMoticon.wsgi.application'
+ASGI_APPLICATION = 'ShoMoticon.routing.application'
+CHANNEL_LAYERS = {
+    'default' : {
+        'BACKEND' : 'channels_redis.core.RedisChannelLayer',
+        'CONFIG' : {
+            'hosts': [('127.0.0.1', 6379)]
+        }
+    }
+}
 
+AUTH_USER_MODEL = 'game.Player'
 
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
